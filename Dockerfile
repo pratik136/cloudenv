@@ -42,6 +42,7 @@ RUN apk --update --no-cache upgrade -a \
     datadog \
     okta-awscli \
     wheel \
+    pylint \
   && curl -o /usr/local/bin/ecs-cli https://s3.amazonaws.com/amazon-ecs-cli/ecs-cli-linux-amd64-latest \
   && chmod +x /usr/local/bin/ecs-cli \
   && sed -i 's/^CREATE_MAIL_SPOOL=yes/CREATE_MAIL_SPOOL=no/' /etc/default/useradd \
@@ -153,6 +154,22 @@ RUN wget $TERRAFORM_LATEST_URL/$TERRAFORM_LATEST_FILENAME \
 # Use Terrafrom 12 by default
 RUN ln -s ./terraform12 ./terraform
 
+# Uncomment to enable debug logs
+# ENV TF_LOG debug
+
+
+# Install tflint
+# From https://github.com/terraform-linters/tflint
+# RUN curl -Ls https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh -o tflint_install_linux.sh \
+# && chmod +x tflint_install_linux.sh \
+# && ./tflint_install_linux.sh
+RUN curl -L -o tflint.zip "$(curl -Ls https://api.github.com/repos/terraform-linters/tflint/releases/latest | grep -o -E "https://.+?_linux_amd64.zip")" \
+&& unzip -u tflint.zip -d /tmp/ \
+&& rm tflint.zip \
+&& echo "Installing /tmp/tflint to /usr/local/bin..." \
+&& install -b -C -v /tmp/tflint /usr/local/bin/ \
+&& rm -rf /tmp/tflint
+
 
 # Install terragrunt 18
 # From https://github.com/gruntwork-io/terragrunt/releases
@@ -172,6 +189,10 @@ ENV TERRAGRUNT_NEW_VERSION 0.26.7
 ENV TERRAGRUNT_NEW_URL https://github.com/gruntwork-io/terragrunt/releases/download/v$TERRAGRUNT_NEW_VERSION
 ENV TERRAGRUNT_NEW_FILENAME terragrunt_linux_amd64
 ENV TERRAGRUNT_NEW_SHA256 ac9df2de05d8fd14e3f8deb91899814461ac89f9cecb6a1fb44c8e74e1c6bf06
+
+# Uncomment to enable debug logs
+# ENV TG_LOG debug
+# ENV TERRAGRUNT_DEBUG true
 
 RUN wget $TERRAGRUNT_NEW_URL/$TERRAGRUNT_NEW_FILENAME \
   && echo "$TERRAGRUNT_NEW_SHA256  ./$TERRAGRUNT_NEW_FILENAME" | sha256sum -c - \
@@ -498,6 +519,18 @@ RUN echo "Test Layer" \
   && terraform-latest -h \
   && terragrunt -h \
   && terragrunt18 -h
+
+# VS Code helper
+# https://code.visualstudio.com/docs/remote/containers-advanced#_avoiding-extension-reinstalls-on-container-rebuild 
+# RUN echo "Username passed in $HOST_USER_NAME" \
+#   && echo $HOST_USER_NAME
+# ARG USERNAME="pbhonsle"
+# RUN mkdir -p /home/$USERNAME/.vscode-server/extensions \
+#              /home/$USERNAME/.vscode-server-insiders/extensions \
+#     && chown -R $USERNAME \
+#         /home/$USERNAME/.vscode-server \
+#         /home/$USERNAME/.vscode-server-insiders
+
 
 COPY bashrc /etc/bashrc
 
