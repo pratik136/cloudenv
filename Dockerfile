@@ -5,6 +5,26 @@ FROM alpine:3.12.3
 
 WORKDIR /usr/bin/
 
+# Install glibc compatibility for alpine
+ENV GLIBC_VER=2.31-r0
+RUN apk --no-cache add \
+  binutils \
+  curl \
+  && curl -sL https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub -o /etc/apk/keys/sgerrand.rsa.pub \
+  && curl -sLO https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VER}/glibc-${GLIBC_VER}.apk \
+  && curl -sLO https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VER}/glibc-bin-${GLIBC_VER}.apk \
+  && apk add --no-cache \
+  glibc-${GLIBC_VER}.apk \
+  glibc-bin-${GLIBC_VER}.apk
+
+# && apk --no-cache del \
+#   binutils \
+#   # curl \
+# && rm glibc-${GLIBC_VER}.apk \
+# && rm glibc-bin-${GLIBC_VER}.apk \
+# && rm -rf /var/cache/apk/*
+
+
 # Install base deps and pip modules
 RUN apk --update --no-cache upgrade -a \
   && apk --update --no-cache add \
@@ -13,17 +33,19 @@ RUN apk --update --no-cache upgrade -a \
     bind-tools \
     ca-certificates \
     coreutils \
-    curl \
+    # curl \
     diffutils \
     fish \
     fzf \
     fzf-bash-completion \
+    # gcompat \
     git \
     gnupg \
     groff \
     iputils \
     jq \
     keychain \
+    # libc6-compat \
     libusb \
     ncurses \
     net-tools \
@@ -37,7 +59,25 @@ RUN apk --update --no-cache upgrade -a \
     su-exec \
     tmux \
     tzdata \
-  && pip install --no-cache-dir  \
+    unzip \
+    nano
+
+
+RUN curl -sL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o awscliv2.zip \
+  && unzip awscliv2.zip \
+  && aws/install \
+  && rm -rf \
+    awscliv2.zip \
+    aws \
+  /usr/local/aws-cli/v2/*/dist/aws_completer \
+  /usr/local/aws-cli/v2/*/dist/awscli/data/ac.index \
+  /usr/local/aws-cli/v2/*/dist/awscli/examples
+
+
+RUN pip3 install --upgrade pip \
+  && pip3 install --no-cache-dir  \
+    pyyaml==3.10 \
+    awscli \
     cookiecutter \
     datadog \
     okta-awscli \
@@ -164,11 +204,11 @@ RUN ln -s ./terraform12 ./terraform
 # && chmod +x tflint_install_linux.sh \
 # && ./tflint_install_linux.sh
 RUN curl -L -o tflint.zip "$(curl -Ls https://api.github.com/repos/terraform-linters/tflint/releases/latest | grep -o -E "https://.+?_linux_amd64.zip")" \
-&& unzip -u tflint.zip -d /tmp/ \
-&& rm tflint.zip \
-&& echo "Installing /tmp/tflint to /usr/local/bin..." \
-&& install -b -C -v /tmp/tflint /usr/local/bin/ \
-&& rm -rf /tmp/tflint
+  && unzip -u tflint.zip -d /tmp/ \
+  && rm tflint.zip \
+  && echo "Installing /tmp/tflint to /usr/local/bin..." \
+  && install -b -C -v /tmp/tflint /usr/local/bin/ \
+  && rm -rf /tmp/tflint
 
 
 # Install terragrunt 18
@@ -483,8 +523,31 @@ RUN wget $GCLOUD_URL/$GCLOUD_FILENAME \
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 COPY clearokta /usr/bin/clearokta
 
-# Set up bashrc and scripts
-RUN echo "# Added at containter build-time" >> /etc/ssh/ssh_config \
+# Install go binaries
+ENV GOROOT "/usr/lib/go"
+RUN apk --update --no-cache add --virtual build.deps \
+    build-base \
+    go \
+    libusb-dev \
+    pkgconfig \
+    libffi-dev \
+    python3-dev \
+    openssl-dev \
+  && echo GOROOT=/usr/lib/go > /usr/lib/go/src/all.bash \
+  && export CGO_ENABLED=0 \
+  && go get github.com/kelseyhightower/confd \
+  && export CGO_ENABLED=1 \
+  && go get github.com/segmentio/aws-okta \
+  && go clean -cache \
+  && mv /root/go/bin/* /usr/bin/ \
+  && pip3 install --no-cache-dir \
+  ec2instanceconnectcli \
+  && apk del build.deps \
+  && rm -rf /root/go/ \
+  && rm -rf /root/.cache \
+  && rm -rf /usr/lib/go/src/all.bash \
+  && aws-okta completion bash > /etc/bash_completion.d/aws-okta \
+  && echo "# Added at containter build-time" >> /etc/ssh/ssh_config \
   && echo "    Host *" >> /etc/ssh/ssh_config \
   && echo "ServerAliveInterval 30" >> /etc/ssh/ssh_config \
   && echo "ServerAliveCountMax 3" >> /etc/ssh/ssh_config \
@@ -518,18 +581,9 @@ RUN echo "Test Layer" \
   && terraform12 -h \
   && terraform-latest -h \
   && terragrunt -h \
-  && terragrunt18 -h
-
-# VS Code helper
-# https://code.visualstudio.com/docs/remote/containers-advanced#_avoiding-extension-reinstalls-on-container-rebuild 
-# RUN echo "Username passed in $HOST_USER_NAME" \
-#   && echo $HOST_USER_NAME
-# ARG USERNAME="pbhonsle"
-# RUN mkdir -p /home/$USERNAME/.vscode-server/extensions \
-#              /home/$USERNAME/.vscode-server-insiders/extensions \
-#     && chown -R $USERNAME \
-#         /home/$USERNAME/.vscode-server \
-#         /home/$USERNAME/.vscode-server-insiders
+  && terragrunt18 -h \
+  && tflint --version \
+  && pylint --version
 
 
 COPY bashrc /etc/bashrc
