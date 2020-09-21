@@ -63,21 +63,9 @@ RUN apk --update --no-cache upgrade -a \
     nano
 
 
-RUN curl -sL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o awscliv2.zip \
-  && unzip awscliv2.zip \
-  && aws/install \
-  && rm -rf \
-    awscliv2.zip \
-    aws \
-  /usr/local/aws-cli/v2/*/dist/aws_completer \
-  /usr/local/aws-cli/v2/*/dist/awscli/data/ac.index \
-  /usr/local/aws-cli/v2/*/dist/awscli/examples
-
-
 RUN pip3 install --upgrade pip \
   && pip3 install --no-cache-dir  \
     pyyaml==3.10 \
-    awscli \
     cookiecutter \
     datadog \
     okta-awscli \
