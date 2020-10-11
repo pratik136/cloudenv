@@ -56,7 +56,13 @@ ${container_command} pull $image_name:$image_tag
 if [ ! "$(${container_command} ps -q -f name=$container_name)" ]; then
   ${container_command} rm -f $container_name
 
-  ${container_command} run ${container_command_opts} -dit \
+  # Go (<1.14.4) contains a bug that requires setting the `--ulimit` flag as a workaround
+  # See:
+  # - https://discuss.hashicorp.com/t/mlock-golang-docker-random-and-ubuntu-20-04/11431
+  # - https://github.com/docker-library/golang/issues/320
+  ${container_command} run ${container_command_opts} \
+    -dit \
+    --ulimit memlock=-1 \
     --name $container_name \
     --hostname $container_name \
     --workdir "$HOME" \
