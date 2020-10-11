@@ -797,7 +797,6 @@ if [ -f '/opt/google-cloud-sdk/completion.bash.inc' ]; then . '/opt/google-cloud
 
 # aws cli bash completion
 complete -C '/usr/local/bin/aws_completer' aws
-complete -C '/usr/bin/aws_completer' aws
 
 
 # terraform autocompletions
@@ -810,4 +809,9 @@ complete -C /usr/bin/terraform tf
 # see: [add shell completion #689](https://github.com/gruntwork-io/terragrunt/issues/689#issuecomment-629161874]
 alias tg='terragrunt'
 complete -C /usr/bin/terraform tg
+
+# Uncomment to enable debug logs
+# export TF_LOG=debug
+# # export TG_LOG=debug
+# export TERRAGRUNT_DEBUG=true
 

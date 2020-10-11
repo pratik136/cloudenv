@@ -5,47 +5,27 @@ FROM alpine:3.12.3
 
 WORKDIR /usr/bin/
 
-# Install glibc compatibility for alpine
-ENV GLIBC_VER=2.31-r0
-RUN apk --no-cache add \
-  binutils \
-  curl \
-  && curl -sL https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub -o /etc/apk/keys/sgerrand.rsa.pub \
-  && curl -sLO https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VER}/glibc-${GLIBC_VER}.apk \
-  && curl -sLO https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VER}/glibc-bin-${GLIBC_VER}.apk \
-  && apk add --no-cache \
-  glibc-${GLIBC_VER}.apk \
-  glibc-bin-${GLIBC_VER}.apk
-
-# && apk --no-cache del \
-#   binutils \
-#   # curl \
-# && rm glibc-${GLIBC_VER}.apk \
-# && rm glibc-bin-${GLIBC_VER}.apk \
-# && rm -rf /var/cache/apk/*
-
+RUN apk update \
+  && apk --update --no-cache upgrade -a 
 
 # Install base deps and pip modules
-RUN apk --update --no-cache upgrade -a \
-  && apk --update --no-cache add \
+RUN apk --update --no-cache add \
     bash \
     bash-completion \
     bind-tools \
     ca-certificates \
     coreutils \
-    # curl \
+    curl \
     diffutils \
     fish \
     fzf \
     fzf-bash-completion \
-    # gcompat \
     git \
     gnupg \
     groff \
     iputils \
     jq \
     keychain \
-    # libc6-compat \
     libusb \
     ncurses \
     net-tools \
@@ -62,10 +42,11 @@ RUN apk --update --no-cache upgrade -a \
     unzip \
     nano
 
+RUN ln -s /usr/bin/python3 /usr/bin/python
 
-RUN pip3 install --upgrade pip \
-  && pip3 install --no-cache-dir  \
-    pyyaml==3.10 \
+RUN pip3 install --upgrade pip
+
+RUN pip3 install --no-cache-dir  \
     cookiecutter \
     datadog \
     okta-awscli \
@@ -74,8 +55,8 @@ RUN pip3 install --upgrade pip \
   && curl -o /usr/local/bin/ecs-cli https://s3.amazonaws.com/amazon-ecs-cli/ecs-cli-linux-amd64-latest \
   && chmod +x /usr/local/bin/ecs-cli \
   && sed -i 's/^CREATE_MAIL_SPOOL=yes/CREATE_MAIL_SPOOL=no/' /etc/default/useradd \
-  && mkdir -p /etc/bash_completion.d \
-  && ln -s /usr/bin/python3 /usr/bin/python
+  && mkdir -p /etc/bash_completion.d
+
 
 # Install software / modules that need build_base
 RUN apk --update --no-cache add --virtual build.deps \
@@ -83,7 +64,7 @@ RUN apk --update --no-cache add --virtual build.deps \
     libffi-dev \
     openssl-dev \
     python3-dev \
-  && pip install --no-cache-dir \
+  && pip3 install --no-cache-dir \
     aws-okta-keyman \
     aws-sam-cli \
     ec2instanceconnectcli \
@@ -182,22 +163,6 @@ RUN wget $TERRAFORM_LATEST_URL/$TERRAFORM_LATEST_FILENAME \
 # Use Terrafrom 12 by default
 RUN ln -s ./terraform12 ./terraform
 
-# Uncomment to enable debug logs
-# ENV TF_LOG debug
-
-
-# Install tflint
-# From https://github.com/terraform-linters/tflint
-# RUN curl -Ls https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh -o tflint_install_linux.sh \
-# && chmod +x tflint_install_linux.sh \
-# && ./tflint_install_linux.sh
-RUN curl -L -o tflint.zip "$(curl -Ls https://api.github.com/repos/terraform-linters/tflint/releases/latest | grep -o -E "https://.+?_linux_amd64.zip")" \
-  && unzip -u tflint.zip -d /tmp/ \
-  && rm tflint.zip \
-  && echo "Installing /tmp/tflint to /usr/local/bin..." \
-  && install -b -C -v /tmp/tflint /usr/local/bin/ \
-  && rm -rf /tmp/tflint
-
 
 # Install terragrunt 18
 # From https://github.com/gruntwork-io/terragrunt/releases
@@ -218,9 +183,6 @@ ENV TERRAGRUNT_NEW_URL https://github.com/gruntwork-io/terragrunt/releases/downl
 ENV TERRAGRUNT_NEW_FILENAME terragrunt_linux_amd64
 ENV TERRAGRUNT_NEW_SHA256 ac9df2de05d8fd14e3f8deb91899814461ac89f9cecb6a1fb44c8e74e1c6bf06
 
-# Uncomment to enable debug logs
-# ENV TG_LOG debug
-# ENV TERRAGRUNT_DEBUG true
 
 RUN wget $TERRAGRUNT_NEW_URL/$TERRAGRUNT_NEW_FILENAME \
   && echo "$TERRAGRUNT_NEW_SHA256  ./$TERRAGRUNT_NEW_FILENAME" | sha256sum -c - \
@@ -511,36 +473,31 @@ RUN wget $GCLOUD_URL/$GCLOUD_FILENAME \
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 COPY clearokta /usr/bin/clearokta
 
-# Install go binaries
-ENV GOROOT "/usr/lib/go"
-RUN apk --update --no-cache add --virtual build.deps \
-    build-base \
-    go \
-    libusb-dev \
-    pkgconfig \
-    libffi-dev \
-    python3-dev \
-    openssl-dev \
-  && echo GOROOT=/usr/lib/go > /usr/lib/go/src/all.bash \
-  && export CGO_ENABLED=0 \
-  && go get github.com/kelseyhightower/confd \
-  && export CGO_ENABLED=1 \
-  && go get github.com/segmentio/aws-okta \
-  && go clean -cache \
-  && mv /root/go/bin/* /usr/bin/ \
-  && pip3 install --no-cache-dir \
-  ec2instanceconnectcli \
-  && apk del build.deps \
-  && rm -rf /root/go/ \
-  && rm -rf /root/.cache \
-  && rm -rf /usr/lib/go/src/all.bash \
-  && aws-okta completion bash > /etc/bash_completion.d/aws-okta \
-  && echo "# Added at containter build-time" >> /etc/ssh/ssh_config \
+# Set up bashrc and scripts
+RUN echo "# Added at containter build-time" >> /etc/ssh/ssh_config \
   && echo "    Host *" >> /etc/ssh/ssh_config \
   && echo "ServerAliveInterval 30" >> /etc/ssh/ssh_config \
   && echo "ServerAliveCountMax 3" >> /etc/ssh/ssh_config \
   && chmod +x /docker-entrypoint.sh \
   && chmod +x /usr/bin/clearokta
+
+
+# Install pylint
+RUN pip3 install --no-cache-dir  \
+  pylint 
+
+
+# Install tflint
+# From https://github.com/terraform-linters/tflint
+# RUN curl -Ls https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh -o tflint_install_linux.sh \
+# && chmod +x tflint_install_linux.sh \
+# && ./tflint_install_linux.sh
+RUN curl -L -o tflint.zip "$(curl -Ls https://api.github.com/repos/terraform-linters/tflint/releases/latest | grep -o -E "https://.+?_linux_amd64.zip")" \
+  && unzip -u tflint.zip -d /tmp/ \
+  && rm tflint.zip \
+  && echo "Installing /tmp/tflint to /usr/local/bin..." \
+  && install -b -C -v /tmp/tflint /usr/local/bin/ \
+  && rm -rf /tmp/tflint
 
 RUN echo "Test Layer" \
   && /opt/google-cloud-sdk/bin/gcloud version \
